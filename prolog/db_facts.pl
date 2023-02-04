@@ -104,11 +104,9 @@ The column of a + pair is taken to be part of the primary key.
 db_create( Conn, Goal ) :-
      Goal =.. [Name|Args],
      create_pairs_atoms_keys( Args, Patoms, Keys ),
-     atomic_list_concat( Patoms, ',', Fields ),
-     atomic_list_concat( Keys, ',', Primary ),
-     Cre = 'Create Table', 
-     PrimK  = 'Primary Key',
-     atomic_list_concat( [Cre,Name,'(',Fields,',',PrimK,'(',Primary,') );'], ' ', Create ),
+     atomic_list_concat( Patoms, ', ', Fields ),
+     atomic_list_concat( Keys, '", "', Primary ),
+     atomic_list_concat( ['CREATE TABLE "',Name,'" (',Fields,', PRIMARY KEY ("',Primary,'") )'], Create ),
      debug( db_facts, 'Create statement: ~w', Create ),
      sqlite_query( Conn, Create, _Res ).
 
@@ -122,7 +120,7 @@ create_pair_atom( H, A ) :-
     ( H=N+T; H=N-T ),
     !,
     create_type_atom( T, Tatom ),
-    atomic_list_concat( [N,Tatom], ' ', A ).
+    atomic_list_concat( ['"',N,'" ',Tatom], A ).
 
 % fixme [] for enum() is untested, in addition it doesnt work in sqlite...
 create_type_atom( [H|T], Tatom ) :-
@@ -188,9 +186,9 @@ db_assert( Conn, Goal, Affected ) :-
      fa_value( known, FATerm, KClms, KVals ), 
      fa_value( unown, FATerm, UClms, UVals ), 
      maplist( dquote(ConT), KVals, QVals ),
-     atomic_list_concat( QVals, ',', CVals ),
-     atomic_list_concat( KClms, ',', CClms ),
-     atomic_list_concat( ['Insert into ',Table,' (',CClms,') Values ','(',CVals,')'], Insert ),
+     atomic_list_concat( QVals, ', ', CVals ),
+     atomic_list_concat( KClms, '", "', CClms ),
+     atomic_list_concat( ['INSERT INTO ',Table,' ("',CClms,'") VALUES ','(',CVals,')'], Insert ),
 
      ( UClms == [] ->
           ( debug( db_facts, 'Assert query: ~w', [Insert] ),
@@ -200,8 +198,8 @@ db_assert( Conn, Goal, Affected ) :-
                db_error( db_assert_failure(Goal,Insert) )
           )
      ;
-          atomic_list_concat( UClms, ',', UnC ),
-          atomic_list_concat( [Insert, ' returning ', UnC], InsRet ),
+          atomic_list_concat( UClms, '", "', UnC ),
+          atomic_list_concat( [Insert, ' RETURNING "', UnC, '"'], InsRet ),
           debug( db_facts, 'Assert query: ~w', [InsRet] ),
           Row =.. [row|UVals],
           Affected = row( Nth ),
@@ -231,18 +229,21 @@ db_holds( Fact ) :-
 db_holds( Conn, Goal ) :-
      Goal =..[Table|Args],
      db_table_columns( Conn, Table, Clms ),
+     db_current_connection( Conn, ConT ),
+
      fact_args_term( Args, Clms, Goal, FATerm ),
      fa_value( known, FATerm, KClms, KVals ), 
      fa_value( unown, FATerm, UClms, UVals ), 
-     sql_clm_value_pairs_to_where( KClms, KVals, Where ),
+     sql_clm_value_pairs_to_where( ConT, KClms, KVals, Where ),
      % next line untested
      ( UClms == [] ->  % then we are asking for confiramtion only
           UnC = '*', UnV = KVals  % can only succeed once in dbs.
           ;
-          atomic_list_concat( UClms, ',', UnC ),
+          atomic_list_concat( UClms, '", "', UnC0 ),
+          atomic_list_concat( ['"',UnC0,'"'], UnC ),
           UnV = UVals
      ),
-     atomic_list_concat( ['Select ',UnC,'From',Table,Where], ' ', Sql ),
+     atomic_list_concat( ['SELECT ',UnC,' FROM "',Table,'" ',Where], Sql ),
      Row =.. [row|UnV],
      db_query( Conn, Sql, Row ).
 
@@ -287,9 +288,11 @@ Affected is the number of rows affected by the operation.
 db_retractall( Conn, Goal, Affected ) :-
      Goal =.. [Table|Args],
      db_table_columns( Conn, Table, Clms ), 
+     db_current_connection( Conn, ConT ),
+
      fact_args_term( Args, Clms, Goal, FATerm ),
      fa_value( known, FATerm, KClms, KVals ), 
-     sql_clm_value_pairs_to_where( KClms, KVals, Where ),
+     sql_clm_value_pairs_to_where( ConT, KClms, KVals, Where ),
      db_retractall_where( Where, Conn, Table, Affected ).
 
 /** db_goal_connection( +Goal, -Conn ).
@@ -389,7 +392,7 @@ Find the max value for a Table, at column ArgOrClm (see db_table_column_name/4).
 */
 db_max( Conn, Table, ArgPrv, Max ) :-
     db_table_column_name( Conn, Table, ArgPrv, Cnm ),
-    atomic_list_concat( ['SELECT MAX(',Cnm,') FROM ',Table,';'], Sql ),
+    atomic_list_concat( ['SELECT Max("',Cnm,'") FROM "',Table,'"'], Sql ),
     db_query( Conn, Sql, Row ),
     Row = row(Max),
     !.
@@ -401,7 +404,7 @@ Find the min value for a Table, at column ArgOrClm (see db_table_column_name/4).
 */
 db_min( Conn, Table, ArgPrv, Min ) :-
     db_table_column_name( Conn, Table, ArgPrv, Cnm ),
-    atomic_list_concat( ['SELECT MIN(',Cnm,') FROM ',Table,';'], Sql ),
+    atomic_list_concat( ['SELECT Min("',Cnm,'") FROM "',Table,'"'], Sql ),
     db_query( Conn, Sql, Row ),
     Row = row(Min),
     !.
@@ -608,66 +611,54 @@ db_retractall_where( '', Conn, Name, 0 ) :-
      nl( user_error ),
      fail.
 db_retractall_where( Where, Conn, Name, Affected ) :-
-     Del = 'Delete from',
-     atomic_list_concat( [Del,Name,Where], ' ', Sql ),
+     atomic_list_concat( ['DELETE FROM "',Name,'" ',Where], Sql ),
      db_query( Conn, Sql, Row ),
      Row = row(Affected).
 
-sql_clm_value_pairs_to_where(Clms, Vals, Where) :-
-     sql_clm_value_pairs_to_where_conjunction(Clms, Vals, Conjunction),
+sql_clm_value_pairs_to_where(ConT, Clms, Vals, Where) :-
+     sql_clm_value_pairs_to_where_conjunction(ConT, Clms, Vals, Conjunction),
      sql_where_conjunction_to_where(Conjunction, Where).
 
 sql_where_conjunction_to_where('', '' ) :- !.
 sql_where_conjunction_to_where(Conjunction, Where ) :-
-     atom_concat( 'Where ', Conjunction, Where ).
+     atom_concat( 'WHERE ', Conjunction, Where ).
 
-sql_clm_value_pairs_to_where_conjunction([], [],  '').
-sql_clm_value_pairs_to_where_conjunction([K|Ks], [V|Vs], Where) :-
-     sql_clm_value_pairs_to_where_conjunction( Ks, Vs, InWhere ),
-     sql_clm_and_val_to_sql_equals_atom(K, V, KVAtm),
+sql_clm_value_pairs_to_where_conjunction(_, [], [],  '').
+sql_clm_value_pairs_to_where_conjunction(ConT, [K|Ks], [V|Vs], Where) :-
+     sql_clm_value_pairs_to_where_conjunction( ConT, Ks, Vs, InWhere ),
+     sql_clm_and_val_to_sql_equals_atom(ConT, K, V, KVAtm),
      ( InWhere == '' -> 
           Where = KVAtm
           ;
           atomic_list_concat([KVAtm, ' AND ', InWhere], Where)
      ).
 
-sql_clm_and_val_to_sql_equals_atom(K, V, KVAtm) :-
-     ( number(V) -> 
-          atom_number(Vatm, V),
-          atom_concat('=',Vatm,EqV)
-          ;
-          atomic_list_concat( Parts, '\'', V ),
-          atomic_list_concat( Parts, '\'\'', Vdb ),
-          atom_concat(Vdb, '\'', VDsh),
-          atom_concat('=\'',VDsh,EqV)
-     ),
-     atom_concat(K, EqV, KVAtm).
+sql_clm_and_val_to_sql_equals_atom(ConT, K, V, KVAtm) :-
+     dquote( ConT, V, Vatm ),
+     atomic_list_concat( [ '"',K,'"=',Vatm ], KVAtm ).
 
 % fixme: date ?
 dquote( _, date(Y,M,D), Quoted ) :-
      !,
-     atomic_list_concat( ['"',Y,'/',M,'/',D,'"'], Quoted ).
+     atomic_list_concat( ['\'',Y,'/',M,'/',D,'\''], Quoted ).
 dquote( _, Val, Quoted ) :-
      number( Val ), 
      !,
-     Quoted = Val.
-dquote( ConT, Val, Quoted ) :-
+     atom_number( Quoted, Val ).
+dquote( _, Val, Quoted ) :-
      atom( Val ),
      !,
-     ( ConT == sqlite -> atom_replace( Val, '"', '""', Esc );
-                         Esc = Val ),
-     atomic_list_concat( ['"',Esc,'"'], Quoted ).
+     atom_replace( Val, '\'', '\'\'', Esc ),
+     atomic_list_concat( ['\'',Esc,'\''], Quoted ).
 dquote( _ConT, Val, Quoted ) :-
      is_list( Val ),
-    !,
-     append( [0'"|Val], [0'"], QuotedCs ),
+     !,
+     append( [0''|Val], [0''], QuotedCs ),
      atom_codes( Quoted, QuotedCs ).
 dquote( ConT, Val, Quoted ) :-
-    string( Val ),
-    atom_string( Atm, Val ),
-     ( ConT == sqlite -> atom_replace( Atm, '"', '""', Esc );
-                         Esc = Val ),
-     atomic_list_concat( ['"',Esc,'"'], Quoted ).
+     string( Val ),
+     atom_string( Atm, Val ),
+     dquote( ConT, Atm, Quoted ).
 
 /*
 dquote( Val, Quoted ) :-
