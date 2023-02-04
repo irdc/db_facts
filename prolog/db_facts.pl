@@ -482,16 +482,24 @@ db_disconnect( Conn ) :-
 
 /** db_date_sql_atom( Date, Sql ).
 
-Convert between  a Prolog date/3 term and an Sql atom. 
+Convert between a Prolog date/3 or date/9 term and an Sql atom.
 The conversion is bidirectional.
 */
 db_date_sql_atom( date(Y,M,D), Sql ) :-
      ground( Sql ), 
      !,
-     atomic_list_concat( Consts, '/', Sql ),
+     atomic_list_concat( Consts, '-', Sql ),
      maplist( atom_number, Consts, [Y,M,D] ).
 db_date_sql_atom( date(Y,M,D), Sql ) :-
-     atomic_list_concat( [Y,M,D], '/', Sql ).
+     atomic_list_concat( [Y,M,D], '-', Sql ).
+
+db_date_sql_atom( date(Y,M,D,H,Mn,S,Off,TZ,DST), Sql ) :-
+     ground( Sql ),
+     !,
+     parse_time( Sql, iso_8601, Stamp ),
+     stamp_date_time( Stamp, date(Y,M,D,H,Mn,S,Off,TZ,DST), 'UTC' ).
+db_date_sql_atom( date(Y,M,D,H,Mn,S,Off,TZ,DST), Sql ) :-
+     format_time( atom(Sql), '%FT%T%z', date(Y,M,D,H,Mn,S,Off,TZ,DST) ).
 
 % non-interface predicates
 %
@@ -637,10 +645,14 @@ sql_clm_and_val_to_sql_equals_atom(ConT, K, V, KVAtm) :-
      dquote( ConT, V, Vatm ),
      atomic_list_concat( [ '"',K,'"=',Vatm ], KVAtm ).
 
-% fixme: date ?
 dquote( _, date(Y,M,D), Quoted ) :-
      !,
-     atomic_list_concat( ['\'',Y,'/',M,'/',D,'\''], Quoted ).
+     db_date_sql_atom( date(Y,M,D), Sql ),
+     atomic_list_concat( ['\'',Sql,'\''], Quoted ).
+dquote( _, date(Y,M,D,H,Mn,S,Off,TZ,DST), Quoted ) :-
+     !,
+     db_date_sql_atom( date(Y,M,D,H,Mn,S,Off,TZ,DST), Sql ),
+     atomic_list_concat( ['\'',Sql,'\''], Quoted ).
 dquote( _, Val, Quoted ) :-
      number( Val ), 
      !,
