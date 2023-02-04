@@ -650,6 +650,11 @@ dquote( _, Val, Quoted ) :-
      !,
      atom_replace( Val, '\'', '\'\'', Esc ),
      atomic_list_concat( ['\'',Esc,'\''], Quoted ).
+dquote( sqlite, Val, Quoted ) :-
+     is_list( Val ),
+     !,
+     hex_bytes( Atm, Val ),
+     atomic_list_concat( ['x\'', Atm, '\''], Quoted ).
 dquote( _ConT, Val, Quoted ) :-
      is_list( Val ),
      !,
