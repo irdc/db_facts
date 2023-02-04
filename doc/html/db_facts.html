@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>db_facts.pl -- a term based interface to the ODBC and SQLite libaries.</title>
+
+<link rel="stylesheet" type="text/css" href="pldoc.css">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+</head>
+<body>
+
+
+<h1 class="file"><span style="float:right"></span>db_facts.pl -- a term based interface to the ODBC and SQLite libaries.</h1>
+
+<p>
+This library serves two purposes. First, term structures can be used to
+interact with SQL databases and second, to provide a common abstraction
+layer for ODBC and proSQLite libraries of SWI-Prolog.</p>
+
+<p>
+This library is <a class="builtin" href="http://www.swi-prolog.org/pldoc/man?predicate=debug/1">debug/1</a> aware: call <code>debug(db_facts)</code> to see what is sent to
+the SQL engine.</p>
+
+<dl class="tags">
+<dt class="keyword-author">author</dt><dd class="keyword-author">- Nicos Angelopoulos,</dd>
+<dt class="keyword-version">version</dt><dd class="keyword-version">- 0.5 2018/3/18, fix single quote in <a class="extmanual" href="http://www.swi-prolog.org/pldoc/man?predicate=db_holds/3">db_holds/3</a>, added <a href="db_facts.html#db_max/4">db_max/4</a> and <a href="db_facts.html#db_min/4">db_min/4</a> and <a class="file" href="../../examples/exam1.pl">examples/exam1.pl</a></dd><dd class="keyword-version">- 0.4 + 0.3, 2016/12/22, fix code-list and enable strings as db fact arguments (and wrap of back-end loading)</dd><dd class="keyword-version">- 0.2, 2016/9/18, allow mass asserts in prosqlite interface</dd><dd class="keyword-version">- 0.1.0, 2013/11/1</dd>
+<dt class="keyword-see">See also</dt><dd class="keyword-see">- <a href="http://stoics.org.uk/~nicos/sware/db_facts/">http://stoics.org.uk/~nicos/sware/db_facts/</a></dd><dd class="keyword-see">- files in examples/ directory</dd><dd class="keyword-see">- also available as a SWI pack <a href="http://www.swi-prolog.org/pack/list">http://www.swi-prolog.org/pack/list</a></dd><dd class="keyword-see">- <a class="file" href="../Releases.txt">doc/Releases.txt</a></dd>
+<dt class="keyword-license">license</dt><dd class="keyword-license">- Perl Artistic License</dd>
+<dt class="keyword-tbd">To be done</dt><dd class="keyword-tbd">- build data structures so we don't interrogate the dbs about column names and the such all the time</dd>
+</dl>
+
+<dl>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_enabled_library/1"><b class="pred">db_enabled_library</b><var class="arglist">(-Lib)</var></a></dt><dd class="defbody"><var>Lib</var> is a db backend library enabled in this run.
+<var>Lib</var> is in {odbc,sqlite}.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_version/2"><b class="pred">db_version</b><var class="arglist">(-Version, -Date)</var></a></dt><dd class="defbody">The current version. <var>Version</var> is a Mj:Mn:Fx term, and date is a <code>date(Y,M,D)</code> term.
+
+<pre class="code" ext="">
+?- db_version( 0:5:0, date(2018,3,18) ).
+true.</pre>
+
+</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_create/2"><b class="pred">db_create</b><var class="arglist">(+Conn, +Goal)</var></a></dt><dd class="defbody">Very simple interface for creating tables via a term representation (<var>Goal</var>).
+<var>Goal</var> should share functor name and arity with the table to be creating at the
+database identified by <var>Conn</var>. Arguments of <var>Goal</var> should be either - or + pairs.
+First term of the pair should be the table name and second should be its type.
+The column of a + pair is taken to be part of the primary key.
+
+<pre class="code" ext="">
+     db_create( phones_db, phones(name+text,telephone-text,address-text) )</pre>
+
+</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_assert/1"><b class="pred">db_assert</b><var class="arglist">(+Goal)</var></a></dt><dd class="defbody">Call <code>db_assert( Conn, Goal, _Aff )</code> for the
+implied connection Conn for table that corresponds
+to the supplied <var>Goal</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_assert/2"><b class="pred">db_assert</b><var class="arglist">(+Goal, -Affected)</var></a></dt><dd class="defbody">Call <code>db_assert( Conn, Goal, Affected )</code> for the
+implied connection Conn for table that corresponds
+to the supplied <var>Goal</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_assert/3"><b class="pred">db_assert</b><var class="arglist">(+Conn, +Goal, -Affected)</var></a></dt><dd class="defbody">Assert a table row to table matching <var>Goal</var> of db connection <var>Conn</var>.
+<var>Affected</var> is the number of rows affected by the operation.
+
+<p>
+As of db_facts v0.2 <var>Goal</var> can be a list of Goals with
+all goals asserted in a single Instert operation.</p></dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_holds/1"><b class="pred">db_holds</b><var class="arglist">(+Goal)</var></a></dt><dd class="defbody">
+
+<blockquote>
+Call <code>db_holds( Conn, Goal )</code> for the
+implied connection Conn for table that corresponds
+to the supplied <var>Goal</var>.
+</blockquote>
+
+</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_holds/2"><b class="pred">db_holds</b><var class="arglist">(+Conn, +Goal)</var></a></dt><dd class="defbody"><var>Goal</var> is partially instantiated at call, returning
+at backtracing all matching rows from corresponding table
+belonging to connection <var>Conn</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_retractall/1"><b class="pred">db_retractall</b><var class="arglist">(+Goal)</var></a></dt><dd class="defbody">Call <code>db_retractall(Conn,Goal,_Aff)</code> for the
+implied connection Conn for table that corresponds
+to the supplied <var>Goal</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_retractall/2"><b class="pred">db_retractall</b><var class="arglist">(+Goal, -Affected)</var></a></dt><dd class="defbody">Call <code>db_retractall(Conn,Goal,Affected)</code> for the
+implied connection Conn for table that corresponds
+to the supplied <var>Goal</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_retractall/3"><b class="pred">db_retractall</b><var class="arglist">(+Conn, +Goal, -Affected)</var></a></dt><dd class="defbody">Remove all rows that correspond to the table from SQLite database
+identified by <var>Conn</var> and is named by <var>Goal</var>'s name. The arity of <var>Goal</var>
+should also match the arity of the table to be deleted.
+Ground arguments are added to the Where part of the DELETE SQL
+statement at their respective column locations.
+<var>Affected</var> is the number of rows affected by the operation.
+
+<pre class="code" ext="">
+     db_retractall( uniprot, secondary_accessions(_,'P64943'), A ).</pre>
+
+</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_goal_connection/2"><b class="pred">db_goal_connection</b><var class="arglist">(+Goal, -Conn)</var></a></dt><dd class="defbody">Locate connection serving table matching to <var>Goal</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_table/2"><b class="pred">db_table</b><var class="arglist">(+Conn, -Table)</var></a> is <b class="det">nondet</b></dt><dd class="defbody"></dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_table/3"><b class="pred">db_table</b><var class="arglist">(+Conn, ?Table, -Facet)</var></a> is <b class="det">nondet</b></dt><dd class="defbody"><var>Table</var> is a table of database <var>Conn</var>. <var>Facet</var> is a property of table.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_table_column/3"><b class="pred">db_table_column</b><var class="arglist">(+Conn, -Table, -Column)</var></a></dt><dd class="defbody"></dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_table_column/4"><b class="pred">db_table_column</b><var class="arglist">(+Conn, -Table, -Column, -Facet)</var></a></dt><dd class="defbody"><var>Table</var> is a table in connection. <var>Column</var> is a column of <var>Table</var> and <var>Facet</var>
+is an aspect of this <var>Column</var> as supported by the underlying
+connection manager.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_max/4"><b class="pred">db_max</b><var class="arglist">(+Conn, +Table, +ArgOrClm, -Max)</var></a></dt><dd class="defbody">Find the max value for a <var>Table</var>, at column <var>ArgOrClm</var> (see <a href="db_facts.html#db_table_column_name/4">db_table_column_name/4</a>).</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_min/4"><b class="pred">db_min</b><var class="arglist">(+Conn, +Table, +ArgOrClm, -Min)</var></a></dt><dd class="defbody">Find the min value for a <var>Table</var>, at column <var>ArgOrClm</var> (see <a href="db_facts.html#db_table_column_name/4">db_table_column_name/4</a>).</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_query/3"><b class="pred">db_query</b><var class="arglist">(+Conn, +Sql, -Row)</var></a></dt><dd class="defbody">Get <var>Row</var> at a time from quering database handle <var>Conn</var>,
+with <var>Sql</var> statement.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_current_connection/1"><b class="pred">db_current_connection</b><var class="arglist">(?Conn)</var></a></dt><dd class="defbody"><var>Conn</var> is a currently open db connection.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_current_connection/2"><b class="pred">db_current_connection</b><var class="arglist">(?Conn, -Type)</var></a></dt><dd class="defbody">True iff <var>Conn</var> is a current db connection of (db_facts) <var>Type</var>.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_disconnect/1"><b class="pred">db_disconnect</b><var class="arglist">(+Conn)</var></a></dt><dd class="defbody">Disconnect from an ODBC or proSQLite connection.</dd>
+<dt class="pubdef"><span style="float:right">&nbsp;</span><a name="db_date_sql_atom/2"><b class="pred">db_date_sql_atom</b><var class="arglist">(Date, Sql)</var></a></dt><dd class="defbody">Convert between a Prolog <a class="extmanual" href="http://www.swi-prolog.org/pldoc/man?predicate=date/3">date/3</a> term and an <var>Sql</var> atom.
+The conversion is bidirectional.</dd>
+</dl>
+
+</body>
+</html>

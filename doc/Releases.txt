@@ -1,0 +1,33 @@
+---   Releases   ---
+--------------------
+
+TBD: 
+      db_table_keys( +Db, ?Table, -Keys ).
+      (  sqlite is easy, check if this works in odbc, 
+      see hdb/src/page_db_update_table.pl )
+
+---
+
+0.5         @   18.03.18
+     18.03.17   FIXED:    db_holds/2, deal with single quote in fact's arguments
+     18.03.14   IFACE:    db_max/4  and db_min/4 gets max/min values for a column
+                TEST:     new examples/exam1.pl
+
+0.4         @   16.12.22
+     16.12.22   FIXED:    wrap use_module/1 call for backends in a catch so it fails, rather than error.
+
+0.3         @   16.12.22
+     16.12.22   FIXED:    phone.pl example (string and code-list as argument)
+                FIXED:    code-list as argument (clause was missing ConT argument?)
+                ADDED:    support for strings as argument
+                FIXED:    URL for uniprot.sqlite in uniprot.pl
+
+0.2         @   16.09.18   
+     16.09.05   ADDED:    multi goals (for proSQLite for now) in db_assert/n.
+                TYPO:     Corrected typo disambled -> disabled
+
+0.1.0       @   13.11.01
+     13.11.01   ADDED:    db_table/2, db_table_column/3,4.
+                ADDED:    "" trick for sqlite assertions. In sqlite "" escapes the " code. 
+
+0.0.1       @   12.10.18   First public release
